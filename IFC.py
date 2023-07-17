@@ -136,14 +136,22 @@ class IFC(QDialog):
         supported_extensions = {ex for ex, f in extensions.items() if f in Image.OPEN}
         supported_extensions = list(supported_extensions)
         
-        filepath = QtWidgets.QFileDialog.getOpenFileName(self)
+        filepath = QtWidgets.QFileDialog.getOpenFileNames(self)
+        print(filepath)
         for i in range(len(supported_extensions)):
-            if supported_extensions[i] in filepath[0]:
-                self.link_o_entree.setText(filepath[0])
-                format_validation = True
+            for y in range(len(filepath[0])):
+                if supported_extensions[i] in filepath[0][y]:
+                    path = str(filepath[0])
+                    path = path.replace("[", "")
+                    path = path.replace("]", "")
+                    path = path.replace("'", "")
+                    self.link_o_entree.setText(path)
+                    format_validation = True
 
-        if format_validation == False and filepath[0] != "":
-            alert("Erreur de format", "Le fichier sélectionné n'est pas pris en charge.")
+        for i in range(len(filepath[0])):
+            if format_validation == False and filepath[0][i] != "":
+                alert("Erreur de format", "Le fichier sélectionné n'est pas pris en charge.")
+                return
 
     #Bouton Clear
     def clear(self):
@@ -166,27 +174,33 @@ class IFC(QDialog):
         global save
         entree = self.link_o_entree.text()
 
+        if "," in entree:
+                entree = entree.split(", ")
+        else:
+            entree = [entree]
+
         if entree == "":
             alert("Erreur de champ", "Aucun lien n'a été saisi.")
         else:
-            entree_validation = entree.replace(os.path.sep, '/')
-            isExist = os.path.exists(entree_validation)
+            for i in range(len(entree)):
+                entree_validation = (entree[i]).replace(os.path.sep, '/')
+                isExist = os.path.exists(entree_validation)
 
-            if isExist == False:
-                alert("Erreur de lien", "Le lien saisi n'est pas valide.")
-                self.link_o_entree.setText("")
-            else:
-                save[0].append(entree.replace(os.path.sep, '/'))
-                nom_image = entree
-                index = nom_image.rindex("/")
-                nom_image = entree[(index+1):]
-                if nom_image in save[1]:
-                    alert("Erreur de nom", "Cette image est déjà dans la liste.")
+                if isExist == False:
+                    alert("Erreur de lien", f'Le lien {entree[i]} saisi n\'est pas valide.')
                     self.link_o_entree.setText("")
                 else:
-                    save[1].append(nom_image)
-                    self.link_o_entree.setText("")
-                    self.combo_maker()
+                    save[0].append((entree[i]).replace(os.path.sep, '/'))
+                    nom_image = entree[i]
+                    index = nom_image.rindex("/")
+                    nom_image = entree[i][(index+1):]
+                    if nom_image in save[1]:
+                        alert("Erreur de nom", "Cette image est déjà dans la liste.")
+                        self.link_o_entree.setText("")
+                    else:
+                        save[1].append(nom_image)
+                        self.link_o_entree.setText("")
+                        self.combo_maker()
 
     #Bouton Dossier
     def dossier(self):
