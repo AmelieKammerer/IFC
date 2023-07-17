@@ -1,5 +1,6 @@
 import sys
-import os 
+import os
+
 from pathlib import Path
 from PIL import Image
 from PIL import features
@@ -53,11 +54,10 @@ class IFC(QDialog):
         self.originalPalette = QApplication.palette()
 
         self.createTextGroupBox()
-        #self.createDotsGroupBox()
+
 
         main_layout = QGridLayout()
         main_layout.addWidget(self.createTextGroupBox, 0, 0)
-        #main_layout.addWidget(self.createDotsGroupBox, 1, 0)
 
         self.setWindowTitle("IFC")
         self.changeStyle('Fusion')
@@ -78,48 +78,92 @@ class IFC(QDialog):
         bouton_ajouter = QPushButton("Ajouter")
         bouton_ajouter.setDefault(False)
         bouton_ajouter.clicked.connect(self.ajouter)
-        bouton_dossier = QPushButton("Dossier")
-        bouton_dossier.setDefault(False)
-        bouton_dossier.clicked.connect(self.dossier)
+        bouton_fichier = QPushButton("Fichiers")
+        bouton_fichier.setDefault(False)
+        bouton_fichier.clicked.connect(self.fichier)
         self.combo_link = QComboBox(self)
-        self.combo_link.addItem("Liste d'images à convertir")
+        self.combo_link.addItem("Liste d'images à convertir (Selectionnez une image pour la retirer de la liste)")
+        self.combo_link.currentTextChanged.connect(self.on_combolink_changed)
+        bouton_clear = QPushButton("Vider la liste")
+        bouton_clear.setDefault(False)
+        bouton_clear.clicked.connect(self.clear)
         espace = QLabel("")
         link_d_label = QLabel("Saisir le chemin où sauvegarder l'image:")
         self.link_d_entree = QLineEdit("")
+        bouton_dossier = QPushButton("Dossiers")
+        bouton_dossier.setDefault(False)
+        bouton_dossier.clicked.connect(self.dossier)
+        bouton_clear_dossier = QPushButton("Vider le champ")
+        bouton_clear_dossier.setDefault(False)
+        bouton_clear_dossier.clicked.connect(self.clear_dossier)
+        self.combo_exts = QComboBox(self)
+
+        self.combo_exts.addItem("Selectionnez le format dans lequel convertir votre / vos image(s)")
+        extensions = Image.registered_extensions()
+        supported_extensions = {ex for ex, f in extensions.items() if f in Image.OPEN}
+        supported_extensions = list(supported_extensions)
+        supported_extensions = sorted(supported_extensions)
+        for i in range(len(supported_extensions)):
+            supported_extensions[i] = supported_extensions[i].replace(".", "")
+            self.combo_exts.addItem(supported_extensions[i])
+
+        bouton_conversion = QPushButton("Lancer la conversion")
+        bouton_conversion.setDefault(False)
+        bouton_conversion.clicked.connect(self.conversion)
 
         link_layout = QGridLayout()
         link_layout.addWidget(link_o_label, 0, 0)
         link_layout.addWidget(bouton_ajouter, 1, 2)
-        link_layout.addWidget(bouton_dossier, 1, 1)
+        link_layout.addWidget(bouton_fichier, 1, 1)
         link_layout.addWidget(self.link_o_entree, 1, 0)
-        link_layout.addWidget(self.combo_link, 2, 0, 1 , 4 )
+        link_layout.addWidget(self.combo_link, 2, 0, 1 , 2 )
+        link_layout.addWidget(bouton_clear, 2, 2)
         link_layout.addWidget(espace, 3, 0)
         link_layout.addWidget(link_d_label, 4, 0)
         link_layout.addWidget(self.link_d_entree, 5, 0)
+        link_layout.addWidget(bouton_dossier, 5, 1)
+        link_layout.addWidget(bouton_clear_dossier, 5, 2)
+        link_layout.addWidget(self.combo_exts, 6, 0)
+        link_layout.addWidget(bouton_conversion, 6, 1, 1, 3)
 
         self.createTextGroupBox.setLayout(link_layout)
 
-    #Bouton Dossier
-    def dossier(self):
+    #Bouton fichier
+    def fichier(self):
         format_validation = False
 
         extensions = Image.registered_extensions()
         supported_extensions = {ex for ex, f in extensions.items() if f in Image.OPEN}
         supported_extensions = list(supported_extensions)
         
-        folderpath = QtWidgets.QFileDialog.getOpenFileName(self)
+        filepath = QtWidgets.QFileDialog.getOpenFileName(self)
         for i in range(len(supported_extensions)):
-            if supported_extensions[i] in folderpath[0]:
-                self.link_o_entree.setText(folderpath[0])
+            if supported_extensions[i] in filepath[0]:
+                self.link_o_entree.setText(filepath[0])
                 format_validation = True
 
-        if format_validation == False:
+        if format_validation == False and filepath[0] != "":
             alert("Erreur de format", "Le fichier sélectionné n'est pas pris en charge.")
+
+    #Bouton Clear
+    def clear(self):
+        global save
+
+        confirm_box = MessageBox()
+        confirm_box.setText("Êtes vous sûr·e de vouloir vider la liste d'images ?")
+        confirm_box.setWindowTitle("Validation de la suppression")
+        confirm_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        confirm_value = confirm_box.exec()
+
+        if confirm_value == QMessageBox.Ok:
+            save = ([],[])
+            self.combo_maker()
+        else:
+            return
 
     #Bouton Ajouter
     def ajouter(self):
         global save
-        print(type(save))
         entree = self.link_o_entree.text()
 
         if entree == "":
@@ -136,9 +180,90 @@ class IFC(QDialog):
                 nom_image = entree
                 index = nom_image.rindex("/")
                 nom_image = entree[(index+1):]
-                save[1].append(nom_image)
-                
+                if nom_image in save[1]:
+                    alert("Erreur de nom", "Cette image est déjà dans la liste.")
+                    self.link_o_entree.setText("")
+                else:
+                    save[1].append(nom_image)
+                    self.link_o_entree.setText("")
+                    self.combo_maker()
 
+    #Bouton Dossier
+    def dossier(self):
+        global save
+
+        folderpath = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder')
+        self.link_d_entree.setText(folderpath)
+
+    #Bouton Dossier
+    def clear_dossier(self):
+        self.link_d_entree.setText("")
+
+    #Bouton Conversion
+    def conversion(self):
+        global save
+        
+        if save[0] == [] or self.link_d_entree.text() == "" or self.combo_exts.currentText() == "Selectionnez le format dans lequel convertir votre / vos image(s)":
+            alert("Erreur de lancement", "Une ou plusieurs erreurs sont survenues: vérifiez d'avoir au moins une image à convertir, d'avoir sélectionné un dossier où sauvegarder les résulats ainsi que d'avoir choisi un format de conversion.")
+        else:
+            folderpath = self.link_d_entree.text()
+            isExist = os.path.exists(folderpath)
+
+            if isExist == False:
+                alert("Erreur de lien", "Le lien entré dans le champ n'est pas valide.")
+            else:
+                for i in range(len(save[0])):
+                    index = (save[1][i]).index(".")
+                    nom = (save[1][i])[:index]
+
+                    try:
+                        image = Image.open(save[0][i])
+                        nom_final = f'{self.link_d_entree.text()}/{nom}.{self.combo_exts.currentText()}'
+                        image.save(nom_final, format = self.combo_exts.currentText(), lossless = True)
+                    except OSError:
+                        image = Image.open(save[0][i])
+                        nom_final = f'{self.link_d_entree.text()}/{nom}.{self.combo_exts.currentText()}'
+                        image = image.convert('RGB')
+                        image.save(nom_final, format = self.combo_exts.currentText(), lossless = True)
+                    
+                confirm_box = MessageBox()
+                confirm_box.setText("La conversion est terminée, voulez vous quitter l'application?")
+                confirm_box.setWindowTitle("Validation de fin de conversion")
+                confirm_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+                confirm_value = confirm_box.exec()
+
+                if confirm_value == QMessageBox.Ok:
+                    sys.exit()
+
+    #Met à jour la liste de presets
+    def combo_maker(self):
+        global save 
+
+        self.combo_link.clear()
+        self.combo_link.addItem("Liste d'images à convertir (Selectionnez une image pour la retirer de la liste)")
+
+        for i in range(len(save[1])):
+            self.combo_link.addItem(save[1][i])
+
+    #Detecte le changement de statut de la liste combolink
+    def on_combolink_changed(self):
+        
+        if self.combo_link.currentText() != "" and self.combo_link.currentText() != "Liste d'images à convertir (Selectionnez une image pour la retirer de la liste)":
+            confirm_box = MessageBox()
+            confirm_box.setText("Êtes vous sûr·e de vouloir supprimer cette image de la liste ?")
+            confirm_box.setWindowTitle("Validation de la suppression")
+            confirm_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+            confirm_value = confirm_box.exec()
+
+            if confirm_value == QMessageBox.Ok:
+                global save
+                for i in range(len(save[1])):
+                    if self.combo_link.currentText() in save[1][i]:
+                        del save[0][i]
+                        del save[1][i]
+                        self.combo_maker()
+            else:
+                return
 
 ## Crée la fenêtre     
 IFC_app = QApplication.instance() 
